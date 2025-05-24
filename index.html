@@ -6,71 +6,120 @@
     <title>Bible Reading Plan Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script type="module">
-    // Import Firebase v10.12.2 modules (keep versions consistent)
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+<script type="module">
+    // Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-analytics.js";
+    import { 
+        getAuth, 
+        signInAnonymously, 
+        signInWithCustomToken, 
+        onAuthStateChanged,
+        createUserWithEmailAndPassword, // For email/password signup
+        signInWithEmailAndPassword,     // For email/password login
+        GoogleAuthProvider,             // For Google Sign-In
+        signInWithPopup,                // For Google Sign-In popup
+        signOut                         // For logging out
+    } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
 
-    // Your web app's Firebase configuration
-    const firebaseConfig = {
+    // Global Firebase variables provided by the Canvas environment
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    // Default Firebase config if not provided by environment
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
         apiKey: "AIzaSyAdDkjy875xQEInplbI7WjoSMi6p_MEB34",
         authDomain: "biblereading-007.firebaseapp.com",
         projectId: "biblereading-007",
-        storageBucket: "biblereading-007.appspot.com",
+        storageBucket: "biblereading-007.firebasestorage.app",
         messagingSenderId: "368099979471",
         appId: "1:368099979471:web:18e01098f7e22574c4c7ba",
         measurementId: "G-1KYPDB68KC"
     };
-
-    // Global Firebase variables (will be populated by Canvas environment or use fallback for hosting)
-    const FIREBASE_PROJECT_CONFIG = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
-    const appId = typeof __app_id !== 'undefined' ? __app_id : FIREBASE_PROJECT_CONFIG.appId || 'default-app-id';
     const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
     let app;
     let db;
     let auth;
+    let analytics;
     let userId = null;
     let isAuthReady = false;
 
-        // Initialize Firebase and set up authentication listener
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+        // Initialize Firebase services immediately
+        try {
+            app = initializeApp(firebaseConfig);
+            analytics = getAnalytics(app);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch (error) {
+            console.error("Failed to initialize Firebase services:", error);
+            // If Firebase initialization fails, set isAuthReady to true but userId to a fallback
+            // This allows the DOMContentLoaded listener to proceed without blocking,
+            // but prevents Firebase operations from being attempted.
+            userId = crypto.randomUUID();
+            isAuthReady = true;
+        }
 
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        document.getElementById('user-id-display').textContent = `User ID: ${userId}`;
-                        isAuthReady = true;
-                        await loadReadingPlan();
-                    } else {
-                        // Sign in anonymously if no custom token or if sign-in fails
+        // Set up authentication listener after DOM is loaded
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Ensure UI elements are ready before attempting to update them
+            const userIdDisplay = document.getElementById('user-id-display');
+            const authSection = document.getElementById('auth-section');
+            const appContent = document.getElementById('app-content');
+            const logoutButton = document.getElementById('logout-button');
+            const userInfoDisplay = document.getElementById('user-info-display');
+
+            if (!userIdDisplay || !authSection || !appContent || !logoutButton || !userInfoDisplay) {
+                console.error("Critical UI elements not found. Cannot proceed with authentication logic.");
+                return;
+            }
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    userIdDisplay.textContent = `User ID: ${userId}`;
+                    authSection.classList.add('hidden');
+                    appContent.classList.remove('hidden');
+                    logoutButton.classList.remove('hidden');
+
+                    const userDisplayName = user.email || user.displayName || `User ${user.uid.substring(0, 8)}`;
+                    userInfoDisplay.textContent = `Welcome, ${userDisplayName}!`;
+
+                    isAuthReady = true;
+                    await loadReadingPlan();
+                } else {
+                    userId = null;
+                    userIdDisplay.textContent = `User ID: Not logged in`;
+                    authSection.classList.remove('hidden');
+                    appContent.classList.add('hidden');
+                    logoutButton.classList.add('hidden');
+                    userInfoDisplay.textContent = '';
+                    
+                    fullPlanData = [];
+                    renderFullPlan();
+                    updateProgress();
+                    updateTodaysReadingDisplay();
+                    isAuthReady = true; 
+
+                    // Attempt anonymous sign-in if no custom token is available
+                    if (!initialAuthToken) {
                         try {
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                            } else {
-                                await signInAnonymously(auth);
-                            }
+                            await signInAnonymously(auth);
                         } catch (error) {
-                            console.error("Firebase Auth Error:", error);
-                            userId = crypto.randomUUID();
-                            document.getElementById('user-id-display').textContent = `User ID (unauthenticated): ${userId}`;
-                            isAuthReady = true;
-                            await loadReadingPlan();
+                            console.error("Anonymous sign-in failed:", error);
+                            // If anonymous sign-in also fails, ensure UI reflects unauthenticated state
+                            userIdDisplay.textContent = `User ID: Unauthenticated (Error)`;
+                        }
+                    } else {
+                        // If initialAuthToken exists, try to sign in with it
+                        try {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } catch (error) {
+                            console.error("Custom token sign-in failed:", error);
+                            userIdDisplay.textContent = `User ID: Unauthenticated (Token Error)`;
                         }
                     }
-                });
-            } catch (error) {
-                console.error("Failed to initialize Firebase:", error);
-                userId = crypto.randomUUID();
-                document.getElementById('user-id-display').textContent = `User ID (init failed): ${userId}`;
-                isAuthReady = true;
-                await loadReadingPlan();
-            }
+                }
+            });
         });
 
         const bibleBookChapters = {
@@ -128,7 +177,7 @@
         
         async function loadReadingPlan() {
             if (!isAuthReady || !db || !userId) {
-                console.log("Authentication not ready or DB/userId not available yet.");
+                console.log("Authentication not ready or DB/userId not available yet. Skipping plan load.");
                 return;
             }
 
@@ -445,11 +494,78 @@
                 });
             });
         }
+
+        // --- Authentication Functions ---
+        async function handleSignUp() {
+            if (!isAuthReady || !auth) {
+                document.getElementById('auth-error-message').textContent = "Firebase not ready. Please wait.";
+                return;
+            }
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                document.getElementById('auth-error-message').textContent = ""; // Clear error on success
+            } catch (error) {
+                document.getElementById('auth-error-message').textContent = `Signup Error: ${error.message}`;
+            }
+        }
+
+        async function handleLogin() {
+            if (!isAuthReady || !auth) {
+                document.getElementById('auth-error-message').textContent = "Firebase not ready. Please wait.";
+                return;
+            }
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                document.getElementById('auth-error-message').textContent = ""; // Clear error on success
+            } catch (error) {
+                document.getElementById('auth-error-message').textContent = `Login Error: ${error.message}`;
+            }
+        }
+
+        async function handleGoogleSignIn() {
+            if (!isAuthReady || !auth) {
+                document.getElementById('auth-error-message').textContent = "Firebase not ready. Please wait.";
+                return;
+            }
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+                document.getElementById('auth-error-message').textContent = ""; // Clear error on success
+            } catch (error) {
+                document.getElementById('auth-error-message').textContent = `Google Sign-In Error: ${error.message}`;
+            }
+        }
+
+        async function handleLogout() {
+            if (!isAuthReady || !auth) {
+                console.warn("Firebase not ready for logout.");
+                return;
+            }
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.error("Logout Error:", error);
+            }
+        }
         
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('currentYear').textContent = new Date().getFullYear();
             renderDashboardChart();
             handleNavigation();
+
+            // Attach event listeners for auth buttons
+            document.getElementById('signup-button').addEventListener('click', handleSignUp);
+            document.getElementById('login-button').addEventListener('click', handleLogin);
+            document.getElementById('google-signin-button').addEventListener('click', handleGoogleSignIn);
+            document.getElementById('logout-button').addEventListener('click', handleLogout);
+
+            // Initially hide app content and show auth section
+            document.getElementById('app-content').classList.add('hidden');
+            document.getElementById('auth-section').classList.remove('hidden');
         });
 
     </script>
@@ -459,78 +575,115 @@
         <header class="bg-sky-600 text-white p-6 rounded-lg shadow-md mb-8">
             <h1 class="text-3xl font-bold text-center">Bible Reading Plan Tracker</h1>
             <p class="text-center text-sky-100 mt-1">Exodus 4 to Revelation 21 (by March 31, 2026)</p>
-            <div id="user-id-display" class="text-center text-sky-200 text-sm mt-2 break-all">Loading User ID...</div>
+            <div id="user-info-display" class="text-center text-sky-100 text-base mt-2"></div>
+            <div id="user-id-display" class="text-center text-sky-200 text-sm mt-1 break-all">Loading User ID...</div>
+            <button id="logout-button" class="hidden mt-4 mx-auto block bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-colors duration-200">Logout</button>
         </header>
 
-        <nav class="mb-8 flex justify-center space-x-2 sm:space-x-4 border-b border-slate-300 pb-2">
-            <button data-tab="dashboard" class="tab-button px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base text-slate-600 hover:text-sky-600 transition-colors duration-200 active">Dashboard</button>
-            <button data-tab="full-plan" class="tab-button px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base text-slate-600 hover:text-sky-600 transition-colors duration-200">Full Plan</button>
-            <button data-tab="tips" class="tab-button px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base text-slate-600 hover:text-sky-600 transition-colors duration-200">Tips</button>
-        </nav>
+        <section id="auth-section" class="p-2 sm:p-4 hidden">
+            <div class="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto">
+                <h2 class="text-2xl font-semibold text-sky-700 mb-4 text-center">Sign Up or Log In</h2>
+                <p class="text-slate-600 mb-4 text-center">Log in to save your reading progress and track your journey!</p>
+                
+                <div id="auth-error-message" class="text-red-600 text-center mb-4"></div>
 
-        <main id="main-content">
-            <section id="dashboard-section" class="p-2 sm:p-4 section-fade-enter-active">
-                <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-                    <h2 class="text-2xl font-semibold text-sky-700 mb-1">Welcome to Your Reading Journey!</h2>
-                    <p class="text-slate-600 mb-4">This dashboard provides an overview of your progress through the Bible reading plan. Track your completed chapters, see what's next, and stay motivated!</p>
+                <div class="mb-6">
+                    <h3 class="text-xl font-semibold text-sky-700 mb-3">Email & Password</h3>
+                    <input type="email" id="signup-email" placeholder="Email for Signup" class="w-full p-3 mb-2 border border-slate-300 rounded-md focus:ring-sky-500 focus:border-sky-500">
+                    <input type="password" id="signup-password" placeholder="Password for Signup" class="w-full p-3 mb-4 border border-slate-300 rounded-md focus:ring-sky-500 focus:border-sky-500">
+                    <button id="signup-button" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded-md transition-colors duration-200">Sign Up</button>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="mb-6">
+                    <input type="email" id="login-email" placeholder="Email for Login" class="w-full p-3 mb-2 border border-slate-300 rounded-md focus:ring-sky-500 focus:border-sky-500">
+                    <input type="password" id="login-password" placeholder="Password for Login" class="w-full p-3 mb-4 border border-slate-300 rounded-md focus:ring-sky-500 focus:border-sky-500">
+                    <button id="login-button" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-md transition-colors duration-200">Log In</button>
+                </div>
+
+                <div class="relative flex py-5 items-center">
+                    <div class="flex-grow border-t border-slate-300"></div>
+                    <span class="flex-shrink mx-4 text-slate-500">OR</span>
+                    <div class="flex-grow border-t border-slate-300"></div>
+                </div>
+
+                <button id="google-signin-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center space-x-2 transition-colors duration-200">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12.24 10.27c-.23-.74-.86-1.31-1.61-1.61-.75-.3-1.6-.47-2.48-.47-2.92 0-5.3 2.38-5.3 5.3s2.38 5.3 5.3 5.3c2.31 0 4.25-1.48 4.96-3.56l.04-.15h-4.96v-3.56h8.4c.09.5.14 1.02.14 1.57 0 5.17-3.98 9.38-9.38 9.38-5.17 0-9.38-4.21-9.38-9.38s4.21-9.38 9.38-9.38c2.6 0 4.9.98 6.7 2.59l-2.8 2.8c-1.18-.88-2.65-1.4-4.2-1.4z" fill="#4285F4"/><path d="M12.24 10.27c-.23-.74-.86-1.31-1.61-1.61-.75-.3-1.6-.47-2.48-.47-2.92 0-5.3 2.38-5.3 5.3s2.38 5.3 5.3 5.3c2.31 0 4.25-1.48 4.96-3.56l.04-.15h-4.96v-3.56h8.4c.09.5.14 1.02.14 1.57 0 5.17-3.98 9.38-9.38 9.38-5.17 0-9.38-4.21-9.38-9.38s4.21-9.38 9.38-9.38c2.6 0 4.9.98 6.7 2.59l-2.8 2.8c-1.18-.88-2.65-1.4-4.2-1.4z" fill="#FBBC05"/><path d="M21.56 12.24c0-.55-.05-1.07-.14-1.57l-.04.15h-8.4v3.56h4.96c-.71 2.08-2.65 3.56-4.96 3.56-2.92 0-5.3-2.38-5.3-5.3s2.38-5.3 5.3-5.3c1.55 0 3.02.52 4.2 1.4l2.8-2.8c-1.8-1.61-4.1-2.59-6.7-2.59-5.17 0-9.38 4.21-9.38 9.38s4.21 9.38 9.38 9.38c5.4 0 9.38-4.21 9.38-9.38z" fill="#EA4335"/><path d="M21.56 12.24c0-.55-.05-1.07-.14-1.57l-.04.15h-8.4v3.56h4.96c-.71 2.08-2.65 3.56-4.96 3.56-2.92 0-5.3-2.38-5.3-5.3s2.38-5.3 5.3-5.3c1.55 0 3.02.52 4.2 1.4l2.8-2.8c-1.8-1.61-4.1-2.59-6.7-2.59-5.17 0-9.38 4.21-9.38 9.38s4.21 9.38 9.38 9.38c5.4 0 9.38-4.21 9.38-9.38z" fill="#34A853"/></svg>
+                    <span>Sign in with Google</span>
+                </button>
+            </div>
+        </section>
+
+        <div id="app-content" class="hidden">
+            <nav class="mb-8 flex justify-center space-x-2 sm:space-x-4 border-b border-slate-300 pb-2">
+                <button data-tab="dashboard" class="tab-button px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base text-slate-600 hover:text-sky-600 transition-colors duration-200 active">Dashboard</button>
+                <button data-tab="full-plan" class="tab-button px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base text-slate-600 hover:text-sky-600 transition-colors duration-200">Full Plan</button>
+                <button data-tab="tips" class="tab-button px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base text-slate-600 hover:text-sky-600 transition-colors duration-200">Tips</button>
+            </nav>
+
+            <main id="main-content">
+                <section id="dashboard-section" class="p-2 sm:p-4 section-fade-enter-active">
+                    <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                        <h2 class="text-2xl font-semibold text-sky-700 mb-1">Welcome to Your Reading Journey!</h2>
+                        <p class="text-slate-600 mb-4">This dashboard provides an overview of your progress through the Bible reading plan. Track your completed chapters, see what's next, and stay motivated!</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-xl font-semibold text-sky-700 mb-3">Overall Progress</h3>
+                            <div class="chart-container mb-4">
+                                <canvas id="progressChart"></canvas>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-lg"><span id="chaptersRead" class="font-bold text-sky-600">0</span> / <span id="totalChapters" class="font-bold">0</span> Chapters Read</p>
+                                <p class="text-2xl font-bold text-amber-500"><span id="percentageComplete">0</span>% Complete</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow-md flex flex-col justify-between">
+                            <div>
+                                <h3 class="text-xl font-semibold text-sky-700 mb-3">Plan Details</h3>
+                                <ul class="space-y-2 text-slate-600">
+                                    <li><strong>Goal:</strong> Complete by March 31, 2026</li>
+                                    <li><strong>Start Date:</strong> May 24, 2025</li>
+                                    <li><strong>Daily Target:</strong> Approx. 4 Chapters</li>
+                                    <li class="mt-3 pt-3 border-t border-slate-200">
+                                        <h4 class="text-lg font-semibold text-sky-700 mb-1">Today's Reading (<span id="currentDateDisplay"></span>):</h4>
+                                        <p id="todaysReading" class="text-amber-600 font-medium">Loading...</p>
+                                        <p id="todaysReadingStatus" class="text-xs"></p>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="mt-4">
+                                <p class="text-sm text-slate-500">Keep up the great work! Every chapter read brings you closer to your goal.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="full-plan-section" class="p-2 sm:p-4 hidden">
+                    <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                        <h2 class="text-2xl font-semibold text-sky-700 mb-1">Detailed Reading Plan</h2>
+                        <p class="text-slate-600 mb-4">Here is the full breakdown of your reading plan, month by month. Check off each day's reading as you complete it. Your progress will be updated on the Dashboard.</p>
+                    </div>
+                    <div id="plan-accordion" class="space-y-4">
+                        </div>
+                </section>
+
+                <section id="tips-section" class="p-2 sm:p-4 hidden">
                     <div class="bg-white p-6 rounded-lg shadow-md">
-                        <h3 class="text-xl font-semibold text-sky-700 mb-3">Overall Progress</h3>
-                        <div class="chart-container mb-4">
-                            <canvas id="progressChart"></canvas>
-                        </div>
-                        <div class="text-center">
-                            <p class="text-lg"><span id="chaptersRead" class="font-bold text-sky-600">0</span> / <span id="totalChapters" class="font-bold">0</span> Chapters Read</p>
-                            <p class="text-2xl font-bold text-amber-500"><span id="percentageComplete">0</span>% Complete</p>
-                        </div>
+                        <h2 class="text-2xl font-semibold text-sky-700 mb-1">Tips for Success</h2>
+                        <p class="text-slate-600 mb-4">Follow these tips to help you stay consistent and get the most out of your Bible reading journey.</p>
+                        <ul class="list-disc list-inside space-y-3 text-slate-600 pl-2">
+                            <li><strong>Consistency is Key:</strong> Aim to read at the same time each day to build a strong habit.</li>
+                            <li><strong>Flexibility:</strong> If you miss a day, don't get discouraged! Simply pick up where you left off or add a few extra chapters on subsequent days to catch up.</li>
+                            <li><strong>Understand, Don't Just Read:</strong> Take time to reflect on what you're reading. Consider using a study Bible or commentary if you want to delve deeper into the text.</li>
+                            <li><strong>Pray:</strong> Before you start reading, ask for understanding and wisdom.</li>
+                            <li><strong>Listen:</strong> If reading is difficult or you're on the go, consider listening to an audio Bible.</li>
+                            <li><strong>Adjust as Needed:</strong> This is a guideline. Feel free to adjust the daily chapter count slightly to fit your personal schedule and reading speed. Some days you might feel like reading more, and that's perfectly fine!</li>
+                        </ul>
                     </div>
-                    <div class="bg-white p-6 rounded-lg shadow-md flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-xl font-semibold text-sky-700 mb-3">Plan Details</h3>
-                            <ul class="space-y-2 text-slate-600">
-                                <li><strong>Goal:</strong> Complete by March 31, 2026</li>
-                                <li><strong>Start Date:</strong> May 24, 2025</li>
-                                <li><strong>Daily Target:</strong> Approx. 4 Chapters</li>
-                                <li class="mt-3 pt-3 border-t border-slate-200">
-                                    <h4 class="text-lg font-semibold text-sky-700 mb-1">Today's Reading (<span id="currentDateDisplay"></span>):</h4>
-                                    <p id="todaysReading" class="text-amber-600 font-medium">Loading...</p>
-                                    <p id="todaysReadingStatus" class="text-xs"></p>
-                                </li>
-                            </ul>
-                        </div>
-                        <div class="mt-4">
-                             <p class="text-sm text-slate-500">Keep up the great work! Every chapter read brings you closer to your goal.</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section id="full-plan-section" class="p-2 sm:p-4 hidden">
-                 <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-                    <h2 class="text-2xl font-semibold text-sky-700 mb-1">Detailed Reading Plan</h2>
-                    <p class="text-slate-600 mb-4">Here is the full breakdown of your reading plan, month by month. Check off each day's reading as you complete it. Your progress will be updated on the Dashboard.</p>
-                </div>
-                <div id="plan-accordion" class="space-y-4">
-                    </div>
-            </section>
-
-            <section id="tips-section" class="p-2 sm:p-4 hidden">
-                <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h2 class="text-2xl font-semibold text-sky-700 mb-1">Tips for Success</h2>
-                    <p class="text-slate-600 mb-4">Follow these tips to help you stay consistent and get the most out of your Bible reading journey.</p>
-                    <ul class="list-disc list-inside space-y-3 text-slate-600 pl-2">
-                        <li><strong>Consistency is Key:</strong> Aim to read at the same time each day to build a strong habit.</li>
-                        <li><strong>Flexibility:</strong> If you miss a day, don't get discouraged! Simply pick up where you left off or add a few extra chapters on subsequent days to catch up.</li>
-                        <li><strong>Understand, Don't Just Read:</strong> Take time to reflect on what you're reading. Consider using a study Bible or commentary if you want to delve deeper into the text.</li>
-                        <li><strong>Pray:</strong> Before you start reading, ask for understanding and wisdom.</li>
-                        <li><strong>Listen:</strong> If reading is difficult or you're on the go, consider listening to an audio Bible.</li>
-                        <li><strong>Adjust as Needed:</strong> This is a guideline. Feel free to adjust the daily chapter count slightly to fit your personal schedule and reading speed. Some days you might feel like reading more, and that's perfectly fine!</li>
-                    </ul>
-                </div>
-            </section>
-        </main>
+                </section>
+            </main>
+        </div>
 
         <footer class="text-center mt-12 mb-6 text-sm text-slate-500">
             <p>&copy; <span id="currentYear"></span> Bible Reading Plan Tracker. Happy Reading!</p>
