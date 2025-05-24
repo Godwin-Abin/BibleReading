@@ -7,37 +7,32 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    // Import Firebase v10.12.2 modules (keep versions consistent)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-        // IMPORTANT: Replace the placeholder below with your actual Firebase project configuration.
-        // You can find this in your Firebase project settings -> Project overview -> Your apps.
-        // Example:
-        /*
-        const FIREBASE_PROJECT_CONFIG = {
-          apiKey: "YOUR_API_KEY",
-          authDomain: "YOUR_AUTH_DOMAIN",
-          projectId: "YOUR_PROJECT_ID",
-          storageBucket: "YOUR_STORAGE_BUCKET",
-          messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-          appId: "YOUR_APP_ID",
-          measurementId: "YOUR_MEASUREMENT_ID" // Optional
-        };
-        */
-        const FIREBASE_PROJECT_CONFIG = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyAdDkjy875xQEInplbI7WjoSMi6p_MEB34",
+        authDomain: "biblereading-007.firebaseapp.com",
+        projectId: "biblereading-007",
+        storageBucket: "biblereading-007.appspot.com",
+        messagingSenderId: "368099979471",
+        appId: "1:368099979471:web:18e01098f7e22574c4c7ba",
+        measurementId: "G-1KYPDB68KC"
+    };
 
+    // Global Firebase variables (will be populated by Canvas environment or use fallback for hosting)
+    const FIREBASE_PROJECT_CONFIG = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
+    const appId = typeof __app_id !== 'undefined' ? __app_id : FIREBASE_PROJECT_CONFIG.appId || 'default-app-id';
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // Global Firebase variables (will be populated by Canvas environment or use fallback for hosting)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : FIREBASE_PROJECT_CONFIG.appId || 'default-app-id';
-        const firebaseConfig = FIREBASE_PROJECT_CONFIG;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        let app;
-        let db;
-        let auth;
-        let userId = null;
-        let isAuthReady = false;
+    let app;
+    let db;
+    let auth;
+    let userId = null;
+    let isAuthReady = false;
 
         // Initialize Firebase and set up authentication listener
         document.addEventListener('DOMContentLoaded', async () => {
