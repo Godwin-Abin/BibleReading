@@ -6,62 +6,63 @@
     <title>Bible Reading Plan Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script type="module">
-    // Firebase SDKs
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-analytics.js";
-    import { 
-        getAuth, 
-        signInAnonymously, 
-        signInWithCustomToken, 
-        onAuthStateChanged,
-        createUserWithEmailAndPassword, // For email/password signup
-        signInWithEmailAndPassword,     // For email/password login
-        GoogleAuthProvider,             // For Google Sign-In
-        signInWithPopup,                // For Google Sign-In popup
-        signOut                         // For logging out
-    } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
+    <script type="module">
+        const firebaseConfig = {
+          apiKey: "AIzaSyAdDkjy875xQEInplbI7WjoSMi6p_MEB34",
+          authDomain: "biblereading-007.firebaseapp.com",
+          projectId: "biblereading-007",
+          storageBucket: "biblereading-007.firebasestorage.app",
+          messagingSenderId: "368099979471",
+          appId: "1:368099979471:web:18e01098f7e22574c4c7ba",
+          measurementId: "G-1KYPDB68KC"
+        };
 
-    // Global Firebase variables provided by the Canvas environment
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    // Default Firebase config if not provided by environment
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-        apiKey: "AIzaSyAdDkjy875xQEInplbI7WjoSMi6p_MEB34",
-        authDomain: "biblereading-007.firebaseapp.com",
-        projectId: "biblereading-007",
-        storageBucket: "biblereading-007.firebasestorage.app",
-        messagingSenderId: "368099979471",
-        appId: "1:368099979471:web:18e01098f7e22574c4c7ba",
-        measurementId: "G-1KYPDB68KC"
-    };
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // Firebase SDKs
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-analytics.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged,
+            createUserWithEmailAndPassword, // For email/password signup
+            signInWithEmailAndPassword,     // For email/password login
+            GoogleAuthProvider,             // For Google Sign-In
+            signInWithPopup,                // For Google Sign-In popup
+            signOut                         // For logging out
+        } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
 
-    let app;
-    let db;
-    let auth;
-    let analytics;
-    let userId = null;
-    let isAuthReady = false;
+        // Global Firebase variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let db;
+        let auth;
+        let analytics;
+        let userId = null;
+        let isAuthReady = false; // Initialize to false
 
         // Initialize Firebase services immediately
+        // This block should only set up the Firebase app and its services.
+        // Authentication state and UI updates should happen in DOMContentLoaded.
         try {
             app = initializeApp(firebaseConfig);
             analytics = getAnalytics(app);
             db = getFirestore(app);
             auth = getAuth(app);
+            isAuthReady = true; // Set to true only if initialization is successful
         } catch (error) {
             console.error("Failed to initialize Firebase services:", error);
-            // If Firebase initialization fails, set isAuthReady to true but userId to a fallback
-            // This allows the DOMContentLoaded listener to proceed without blocking,
-            // but prevents Firebase operations from being attempted.
-            userId = crypto.randomUUID();
-            isAuthReady = true;
+            // If Firebase initialization fails, isAuthReady remains false.
+            // userId will be set to a random UUID in the DOMContentLoaded listener
+            // if no authentication can be established.
         }
 
         // Set up authentication listener after DOM is loaded
         document.addEventListener('DOMContentLoaded', async () => {
-            // Ensure UI elements are ready before attempting to update them
             const userIdDisplay = document.getElementById('user-id-display');
             const authSection = document.getElementById('auth-section');
             const appContent = document.getElementById('app-content');
@@ -73,53 +74,55 @@
                 return;
             }
 
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    userIdDisplay.textContent = `User ID: ${userId}`;
-                    authSection.classList.add('hidden');
-                    appContent.classList.remove('hidden');
-                    logoutButton.classList.remove('hidden');
+            // Only proceed with auth state observation if Firebase services were initialized successfully
+            if (isAuthReady) {
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = `User ID: ${userId}`;
+                        authSection.classList.add('hidden');
+                        appContent.classList.remove('hidden');
+                        logoutButton.classList.remove('hidden');
 
-                    const userDisplayName = user.email || user.displayName || `User ${user.uid.substring(0, 8)}`;
-                    userInfoDisplay.textContent = `Welcome, ${userDisplayName}!`;
+                        const userDisplayName = user.email || user.displayName || `User ${user.uid.substring(0, 8)}`;
+                        userInfoDisplay.textContent = `Welcome, ${userDisplayName}!`;
 
-                    isAuthReady = true;
-                    await loadReadingPlan();
-                } else {
-                    userId = null;
-                    userIdDisplay.textContent = `User ID: Not logged in`;
-                    authSection.classList.remove('hidden');
-                    appContent.classList.add('hidden');
-                    logoutButton.classList.add('hidden');
-                    userInfoDisplay.textContent = '';
-                    
-                    fullPlanData = [];
-                    renderFullPlan();
-                    updateProgress();
-                    updateTodaysReadingDisplay();
-                    isAuthReady = true; 
-
-                    // Attempt anonymous sign-in if no custom token is available
-                    if (!initialAuthToken) {
-                        try {
-                            await signInAnonymously(auth);
-                        } catch (error) {
-                            console.error("Anonymous sign-in failed:", error);
-                            // If anonymous sign-in also fails, ensure UI reflects unauthenticated state
-                            userIdDisplay.textContent = `User ID: Unauthenticated (Error)`;
-                        }
+                        await loadReadingPlan();
                     } else {
-                        // If initialAuthToken exists, try to sign in with it
-                        try {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } catch (error) {
-                            console.error("Custom token sign-in failed:", error);
-                            userIdDisplay.textContent = `User ID: Unauthenticated (Token Error)`;
+                        userId = null;
+                        userIdDisplay.textContent = `User ID: Not logged in`;
+                        authSection.classList.remove('hidden');
+                        appContent.classList.add('hidden');
+                        logoutButton.classList.add('hidden');
+                        userInfoDisplay.textContent = '';
+                        
+                        fullPlanData = [];
+                        renderFullPlan();
+                        updateProgress();
+                        updateTodaysReadingDisplay();
+
+                        // Attempt initial sign-in if not already authenticated
+                        if (auth && !auth.currentUser) { // Check if auth object exists and no user is currently signed in
+                            try {
+                                if (initialAuthToken) {
+                                    await signInWithCustomToken(auth, initialAuthToken);
+                                } else {
+                                    await signInAnonymously(auth);
+                                }
+                            } catch (error) {
+                                console.error("Initial sign-in failed:", error);
+                                userIdDisplay.textContent = `User ID: Unauthenticated (Error)`;
+                            }
                         }
                     }
-                }
-            });
+                });
+            } else {
+                // If Firebase initialization failed, display an error and keep auth section visible
+                userIdDisplay.textContent = `User ID: Firebase Init Failed`;
+                authSection.classList.remove('hidden');
+                appContent.classList.add('hidden');
+                document.getElementById('auth-error-message').textContent = "Firebase initialization failed. Please check your configuration.";
+            }
         });
 
         const bibleBookChapters = {
@@ -208,8 +211,10 @@
         function generateFullPlanData() {
             const bookOrder = getBookOrder();
             let overallReadingIdCounter = 0;
-            let currentBookName = "";
-            let currentChapterNum = 0;
+            let currentBookIndex = bookOrder.indexOf("Exodus");
+            let currentBookName = bookOrder[currentBookIndex];
+            let currentChapterNum = 4;
+
             fullPlanData = [];
 
             sourcePlanMonthlySummary.forEach(monthData => {
@@ -225,73 +230,71 @@
                     month: monthData.monthName,
                     part: monthData.part,
                     dailyReadings: [],
-                    totalMonthChapters: monthData.readings.reduce((sum, r) => sum + r.totalChapters, 0)
+                    totalMonthChapters: 0
                 };
 
-                monthData.readings.forEach(readingBlock => {
-                    if (!currentBookName || currentBookName !== readingBlock.book || currentChapterNum === 0) {
-                         currentBookName = readingBlock.book;
-                         currentChapterNum = readingBlock.startChapter;
-                    }
+                for (let day = 0; day < daysInThisMonth; day++) {
+                    let dayChapters = [];
+                    let dayReadingDisplayString = "";
+                    let chaptersForThisDay = 0;
 
-                    let chaptersRemainingInBlock = readingBlock.totalChapters;
-                    
-                    while(chaptersRemainingInBlock > 0 && monthEntry.dailyReadings.length < daysInThisMonth) {
-                        let dayChapters = [];
-                        let dayReadingString = "";
-
-                        for (let i = 0; i < CHAPTERS_PER_DAY && chaptersRemainingInBlock > 0; i++) {
-                            if (currentChapterNum > bibleBookChapters[currentBookName]) {
-                                const currentBookIndex = bookOrder.indexOf(currentBookName);
-                                if (currentBookIndex + 1 < bookOrder.length) {
-                                    currentBookName = bookOrder[currentBookIndex + 1];
-                                    currentChapterNum = 1;
-                                } else {
-                                    break; 
-                                }
-                            }
-                            
-                            dayChapters.push({ book: currentBookName, chapter: currentChapterNum });
-                            currentChapterNum++;
-                            chaptersRemainingInBlock--;
-                        }
-
-                        if (dayChapters.length > 0) {
-                            let currentReadBook = dayChapters[0].book;
-                            let startReadChapter = dayChapters[0].chapter;
-                            let endReadChapter = dayChapters[0].chapter;
-                            dayReadingString = `${currentReadBook} ${startReadChapter}`;
-
-                            for (let k = 1; k < dayChapters.length; k++) {
-                                if (dayChapters[k].book === currentReadBook && dayChapters[k].chapter === endReadChapter + 1) {
-                                    endReadChapter = dayChapters[k].chapter;
-                                } else {
-                                    if (startReadChapter !== endReadChapter) {
-                                        dayReadingString += `-${endReadChapter}`;
-                                    }
-                                    currentReadBook = dayChapters[k].book;
-                                    startReadChapter = dayChapters[k].chapter;
-                                    endReadChapter = dayChapters[k].chapter;
-                                    dayReadingString += `, ${currentReadBook} ${startReadChapter}`;
-                                }
-                            }
-                            if (startReadChapter !== endReadChapter) {
-                                dayReadingString += `-${endReadChapter}`;
+                    for (let i = 0; i < CHAPTERS_PER_DAY; i++) {
+                        if (currentBookName && currentChapterNum > bibleBookChapters[currentBookName]) {
+                            currentBookIndex++;
+                            if (currentBookIndex < bookOrder.length) {
+                                currentBookName = bookOrder[currentBookIndex];
+                                currentChapterNum = 1;
+                            } else {
+                                currentBookName = null;
+                                currentChapterNum = null;
+                                break;
                             }
                         }
                         
-                        const dayNumber = (monthData.monthName === "May 2025") ? monthData.startDay + monthEntry.dailyReadings.length : monthEntry.dailyReadings.length + 1;
-                        const date = new Date(year, monthJs, dayNumber);
-                        if (date.getMonth() !== monthJs && monthData.monthName !== "March 2026") continue;
+                        if (currentBookName === null) break;
 
-                        monthEntry.dailyReadings.push({
-                            id: `reading-${overallReadingIdCounter++}`,
-                            date: date.toISOString().split('T')[0],
-                            booksAndChapters: dayReadingString || "Rest Day (or catch up)",
+                        dayChapters.push({
+                            id: `chapter-${overallReadingIdCounter++}`,
+                            book: currentBookName,
+                            chapterNum: currentChapterNum,
                             completed: false
                         });
+                        chaptersForThisDay++;
+                        currentChapterNum++;
                     }
-                });
+
+                    if (dayChapters.length > 0) {
+                        let currentSegmentBook = dayChapters[0].book;
+                        let currentSegmentStartChapter = dayChapters[0].chapterNum;
+                        let currentSegmentEndChapter = dayChapters[0].chapterNum;
+                        let segments = [];
+
+                        for (let k = 1; k < dayChapters.length; k++) {
+                            const chapter = dayChapters[k];
+                            if (chapter.book === currentSegmentBook && chapter.chapterNum === currentSegmentEndChapter + 1) {
+                                currentSegmentEndChapter = chapter.chapterNum;
+                            } else {
+                                segments.push(`${currentSegmentBook} ${currentSegmentStartChapter}${currentSegmentStartChapter !== currentSegmentEndChapter ? `-${currentSegmentEndChapter}` : ''}`);
+                                currentSegmentBook = chapter.book;
+                                currentSegmentStartChapter = chapter.chapterNum;
+                                currentSegmentEndChapter = chapter.chapterNum;
+                            }
+                        }
+                        segments.push(`${currentSegmentBook} ${currentSegmentStartChapter}${currentSegmentStartChapter !== currentSegmentEndChapter ? `-${currentSegmentEndChapter}` : ''}`);
+                        dayReadingDisplayString = segments.join(', ');
+                    } else {
+                        dayReadingDisplayString = "No reading scheduled";
+                    }
+                    
+                    const date = new Date(year, monthJs, (monthData.monthName === "May 2025") ? monthData.startDay + day : day + 1);
+                    
+                    monthEntry.dailyReadings.push({
+                        date: date.toISOString().split('T')[0],
+                        booksAndChaptersDisplay: dayReadingDisplayString,
+                        chapters: dayChapters
+                    });
+                    monthEntry.totalMonthChapters += chaptersForThisDay;
+                }
                 fullPlanData.push(monthEntry);
             });
         }
@@ -316,34 +319,45 @@
                 contentDiv.className = 'p-4 border-t border-slate-200 hidden space-y-3';
                 contentDiv.id = `month-content-${monthIndex}`;
 
-                monthPlan.dailyReadings.forEach(dayReading => {
+                monthPlan.dailyReadings.forEach((dayReading, dayIndex) => {
                     const dayDiv = document.createElement('div');
-                    dayDiv.className = 'flex items-center justify-between p-2 bg-slate-50 rounded hover:bg-slate-100';
-                    
-                    const label = document.createElement('label');
-                    label.htmlFor = dayReading.id;
-                    label.className = 'flex-grow cursor-pointer';
+                    dayDiv.className = 'p-2 bg-slate-50 rounded hover:bg-slate-100';
                     
                     const dateObj = new Date(dayReading.date + 'T00:00:00');
                     const formattedDate = `${dateObj.toLocaleString('default', { month: 'short' })} ${dateObj.getDate()}`;
 
-                    label.innerHTML = `
-                        <span class="font-medium text-slate-600">${formattedDate}:</span>
-                        <span class="ml-2 text-sm text-slate-800">${dayReading.booksAndChapters}</span>
-                    `;
+                    const dayHeader = document.createElement('div');
+                    dayHeader.className = 'font-medium text-slate-700 mb-2';
+                    dayHeader.textContent = `${formattedDate}: ${dayReading.booksAndChaptersDisplay}`;
+                    dayDiv.appendChild(dayHeader);
 
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.id = dayReading.id;
-                    checkbox.checked = dayReading.completed;
-                    checkbox.className = 'form-checkbox h-5 w-5 text-amber-500 rounded border-slate-300 focus:ring-amber-400 ml-3 shrink-0';
-                    checkbox.addEventListener('change', () => {
-                        dayReading.completed = checkbox.checked;
-                        saveReadingPlan();
+                    const chaptersContainer = document.createElement('div');
+                    chaptersContainer.className = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pl-4';
+
+                    dayReading.chapters.forEach(chapter => {
+                        const chapterItem = document.createElement('div');
+                        chapterItem.className = 'flex items-center';
+                        
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.id = chapter.id;
+                        checkbox.checked = chapter.completed;
+                        checkbox.className = 'form-checkbox h-4 w-4 text-amber-500 rounded border-slate-300 focus:ring-amber-400 mr-2';
+                        checkbox.addEventListener('change', () => {
+                            chapter.completed = checkbox.checked;
+                            saveReadingPlan();
+                        });
+
+                        const label = document.createElement('label');
+                        label.htmlFor = chapter.id;
+                        label.className = 'text-sm text-slate-800 cursor-pointer';
+                        label.textContent = `${chapter.book} ${chapter.chapterNum}`;
+
+                        chapterItem.appendChild(checkbox);
+                        chapterItem.appendChild(label);
+                        chaptersContainer.appendChild(chapterItem);
                     });
-
-                    dayDiv.appendChild(label);
-                    dayDiv.appendChild(checkbox);
+                    dayDiv.appendChild(chaptersContainer);
                     contentDiv.appendChild(dayDiv);
                 });
 
@@ -362,19 +376,17 @@
             let chaptersReadCount = 0;
             let totalPlanChapters = 0;
 
-            totalPlanChapters = sourcePlanMonthlySummary.reduce((sum, month) => sum + month.readings.reduce((s, r) => s + r.totalChapters, 0), 0);
-            
-            chaptersReadCount = 0;
             fullPlanData.forEach(monthPlan => {
-                monthPlan.dailyReadings.forEach(day => {
-                    if (day.completed) {
-                         let dailyChapters = CHAPTERS_PER_DAY;
-                         chaptersReadCount += dailyChapters;
-                    }
+                monthPlan.dailyReadings.forEach(dayReading => {
+                    dayReading.chapters.forEach(chapter => {
+                        totalPlanChapters++;
+                        if (chapter.completed) {
+                            chaptersReadCount++;
+                        }
+                    });
                 });
             });
-            chaptersReadCount = Math.min(chaptersReadCount, totalPlanChapters);
-
+            
             document.getElementById('chaptersRead').textContent = chaptersReadCount;
             document.getElementById('totalChapters').textContent = totalPlanChapters;
             
@@ -426,17 +438,30 @@
             document.getElementById('currentDateDisplay').textContent = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
             let foundToday = false;
+            let todaysReadingText = "No reading scheduled for today.";
+            let todaysReadingStatusText = "";
+            let completedTodayCount = 0;
+            let totalTodayCount = 0;
+
             for (const monthPlan of fullPlanData) {
                 for (const dayReading of monthPlan.dailyReadings) {
                     if (dayReading.date === todayString) {
-                        document.getElementById('todaysReading').textContent = dayReading.booksAndChapters;
-                        const statusEl = document.getElementById('todaysReadingStatus');
-                        if (dayReading.completed) {
-                            statusEl.textContent = "Completed! Great job!";
-                            statusEl.className = "text-xs text-green-600";
+                        todaysReadingText = dayReading.booksAndChaptersDisplay;
+                        totalTodayCount = dayReading.chapters.length;
+                        completedTodayCount = dayReading.chapters.filter(c => c.completed).length;
+
+                        if (totalTodayCount > 0) {
+                            todaysReadingStatusText = `${completedTodayCount} of ${totalTodayCount} chapters completed today.`;
+                            if (completedTodayCount === totalTodayCount) {
+                                todaysReadingStatusText += " Great job!";
+                                document.getElementById('todaysReadingStatus').className = "text-xs text-green-600";
+                            } else {
+                                todaysReadingStatusText += " Keep going!";
+                                document.getElementById('todaysReadingStatus').className = "text-xs text-red-600";
+                            }
                         } else {
-                            statusEl.textContent = "Pending - Let's get to it!";
-                            statusEl.className = "text-xs text-red-600";
+                            todaysReadingStatusText = "No chapters assigned for today.";
+                            document.getElementById('todaysReadingStatus').className = "text-xs";
                         }
                         foundToday = true;
                         break;
@@ -444,9 +469,10 @@
                 }
                 if (foundToday) break;
             }
+            document.getElementById('todaysReading').textContent = todaysReadingText;
+            document.getElementById('todaysReadingStatus').textContent = todaysReadingStatusText;
             if (!foundToday) {
-                document.getElementById('todaysReading').textContent = "No reading scheduled for today or plan complete.";
-                 document.getElementById('todaysReadingStatus').textContent = "";
+                document.getElementById('todaysReadingStatus').className = "text-xs";
             }
         }
 
@@ -463,6 +489,7 @@
                     lastUpdated: new Date().toISOString()
                 });
                 console.log("Reading plan saved to Firestore!");
+                updateProgress();
             } catch (error) {
                 console.error("Error saving reading plan to Firestore:", error);
             }
@@ -495,38 +522,38 @@
             });
         }
 
-        // --- Authentication Functions ---
         async function handleSignUp() {
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            document.getElementById('auth-error-message').textContent = "";
             if (!isAuthReady || !auth) {
                 document.getElementById('auth-error-message').textContent = "Firebase not ready. Please wait.";
                 return;
             }
-            const email = document.getElementById('signup-email').value;
-            const password = document.getElementById('signup-password').value;
             try {
                 await createUserWithEmailAndPassword(auth, email, password);
-                document.getElementById('auth-error-message').textContent = ""; // Clear error on success
             } catch (error) {
                 document.getElementById('auth-error-message').textContent = `Signup Error: ${error.message}`;
             }
         }
 
         async function handleLogin() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            document.getElementById('auth-error-message').textContent = "";
             if (!isAuthReady || !auth) {
                 document.getElementById('auth-error-message').textContent = "Firebase not ready. Please wait.";
                 return;
             }
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
             try {
                 await signInWithEmailAndPassword(auth, email, password);
-                document.getElementById('auth-error-message').textContent = ""; // Clear error on success
             } catch (error) {
                 document.getElementById('auth-error-message').textContent = `Login Error: ${error.message}`;
             }
         }
 
         async function handleGoogleSignIn() {
+            document.getElementById('auth-error-message').textContent = "";
             if (!isAuthReady || !auth) {
                 document.getElementById('auth-error-message').textContent = "Firebase not ready. Please wait.";
                 return;
@@ -534,7 +561,6 @@
             const provider = new GoogleAuthProvider();
             try {
                 await signInWithPopup(auth, provider);
-                document.getElementById('auth-error-message').textContent = ""; // Clear error on success
             } catch (error) {
                 document.getElementById('auth-error-message').textContent = `Google Sign-In Error: ${error.message}`;
             }
@@ -557,13 +583,11 @@
             renderDashboardChart();
             handleNavigation();
 
-            // Attach event listeners for auth buttons
             document.getElementById('signup-button').addEventListener('click', handleSignUp);
             document.getElementById('login-button').addEventListener('click', handleLogin);
             document.getElementById('google-signin-button').addEventListener('click', handleGoogleSignIn);
             document.getElementById('logout-button').addEventListener('click', handleLogout);
 
-            // Initially hide app content and show auth section
             document.getElementById('app-content').classList.add('hidden');
             document.getElementById('auth-section').classList.remove('hidden');
         });
