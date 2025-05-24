@@ -1,89 +1,546 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Welcome to Firebase Hosting</title>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bible Reading Plan Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    <!-- update the version number as needed -->
-    <script defer src="/__/firebase/11.8.1/firebase-app-compat.js"></script>
-    <!-- include only the Firebase features as you need -->
-    <script defer src="/__/firebase/11.8.1/firebase-auth-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-database-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-firestore-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-functions-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-messaging-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-storage-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-analytics-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-remote-config-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-performance-compat.js"></script>
-    <!-- 
-      initialize the SDK after all desired features are loaded, set useEmulator to false
-      to avoid connecting the SDK to running emulators.
-    -->
-    <script defer src="/__/firebase/init.js?useEmulator=true"></script>
+        // IMPORTANT: Replace the placeholder below with your actual Firebase project configuration.
+        // You can find this in your Firebase project settings -> Project overview -> Your apps.
+        // Example:
+        /*
+        const FIREBASE_PROJECT_CONFIG = {
+          apiKey: "YOUR_API_KEY",
+          authDomain: "YOUR_AUTH_DOMAIN",
+          projectId: "YOUR_PROJECT_ID",
+          storageBucket: "YOUR_STORAGE_BUCKET",
+          messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+          appId: "YOUR_APP_ID",
+          measurementId: "YOUR_MEASUREMENT_ID" // Optional
+        };
+        */
+        const FIREBASE_PROJECT_CONFIG = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 
-    <style media="screen">
-      body { background: #ECEFF1; color: rgba(0,0,0,0.87); font-family: Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
-      #message { background: white; max-width: 360px; margin: 100px auto 16px; padding: 32px 24px; border-radius: 3px; }
-      #message h2 { color: #ffa100; font-weight: bold; font-size: 16px; margin: 0 0 8px; }
-      #message h1 { font-size: 22px; font-weight: 300; color: rgba(0,0,0,0.6); margin: 0 0 16px;}
-      #message p { line-height: 140%; margin: 16px 0 24px; font-size: 14px; }
-      #message a { display: block; text-align: center; background: #039be5; text-transform: uppercase; text-decoration: none; color: white; padding: 16px; border-radius: 4px; }
-      #message, #message a { box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24); }
-      #load { color: rgba(0,0,0,0.4); text-align: center; font-size: 13px; }
-      @media (max-width: 600px) {
-        body, #message { margin-top: 0; background: white; box-shadow: none; }
-        body { border-top: 16px solid #ffa100; }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="message">
-      <h2>Welcome</h2>
-      <h1>Firebase Hosting Setup Complete</h1>
-      <p>You're seeing this because you've successfully setup Firebase Hosting. Now it's time to go build something extraordinary!</p>
-      <a target="_blank" href="https://firebase.google.com/docs/hosting/">Open Hosting Documentation</a>
-    </div>
-    <p id="load">Firebase SDK Loading&hellip;</p>
 
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const loadEl = document.querySelector('#load');
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
-        // // The Firebase SDK is initialized and available here!
-        //
-        // firebase.auth().onAuthStateChanged(user => { });
-        // firebase.database().ref('/path/to/ref').on('value', snapshot => { });
-        // firebase.firestore().doc('/foo/bar').get().then(() => { });
-        // firebase.functions().httpsCallable('yourFunction')().then(() => { });
-        // firebase.messaging().requestPermission().then(() => { });
-        // firebase.storage().ref('/path/to/ref').getDownloadURL().then(() => { });
-        // firebase.analytics(); // call to activate
-        // firebase.analytics().logEvent('tutorial_completed');
-        // firebase.performance(); // call to activate
-        //
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
+        // Global Firebase variables (will be populated by Canvas environment or use fallback for hosting)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : FIREBASE_PROJECT_CONFIG.appId || 'default-app-id';
+        const firebaseConfig = FIREBASE_PROJECT_CONFIG;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        try {
-          let app = firebase.app();
-          let features = [
-            'auth', 
-            'database', 
-            'firestore',
-            'functions',
-            'messaging', 
-            'storage', 
-            'analytics', 
-            'remoteConfig',
-            'performance',
-          ].filter(feature => typeof app[feature] === 'function');
-          loadEl.textContent = `Firebase SDK loaded with ${features.join(', ')}`;
-        } catch (e) {
-          console.error(e);
-          loadEl.textContent = 'Error loading the Firebase SDK, check the console.';
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
+
+        // Initialize Firebase and set up authentication listener
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        document.getElementById('user-id-display').textContent = `User ID: ${userId}`;
+                        isAuthReady = true;
+                        await loadReadingPlan();
+                    } else {
+                        // Sign in anonymously if no custom token or if sign-in fails
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (error) {
+                            console.error("Firebase Auth Error:", error);
+                            userId = crypto.randomUUID();
+                            document.getElementById('user-id-display').textContent = `User ID (unauthenticated): ${userId}`;
+                            isAuthReady = true;
+                            await loadReadingPlan();
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Failed to initialize Firebase:", error);
+                userId = crypto.randomUUID();
+                document.getElementById('user-id-display').textContent = `User ID (init failed): ${userId}`;
+                isAuthReady = true;
+                await loadReadingPlan();
+            }
+        });
+
+        const bibleBookChapters = {
+            "Exodus": 40, "Leviticus": 27, "Numbers": 36, "Deuteronomy": 34,
+            "Joshua": 24, "Judges": 21, "Ruth": 4, "1 Samuel": 31, "2 Samuel": 24,
+            "1 Kings": 22, "2 Kings": 25, "1 Chronicles": 29, "2 Chronicles": 36, "Ezra": 10,
+            "Nehemiah": 13, "Esther": 10, "Job": 42, "Psalms": 150, "Proverbs": 31,
+            "Ecclesiastes": 12, "Song of Solomon": 8, "Isaiah": 66, "Jeremiah": 52,
+            "Lamentations": 5, "Ezekiel": 48, "Daniel": 12, "Hosea": 14, "Joel": 3, "Amos": 9,
+            "Obadiah": 1, "Jonah": 4, "Micah": 7, "Nahum": 3, "Habakkuk": 3, "Zephaniah": 3,
+            "Haggai": 2, "Zechariah": 14, "Malachi": 4,
+            "Matthew": 28, "Mark": 16, "Luke": 24, "John": 21, "Acts": 28, "Romans": 16,
+            "1 Corinthians": 16, "2 Corinthians": 13, "Galatians": 6, "Ephesians": 6,
+            "Philippians": 4, "Colossians": 4, "1 Thessalonians": 5, "2 Thessalonians": 3,
+            "1 Timothy": 6, "2 Timothy": 4, "Titus": 3, "Philemon": 1, "Hebrews": 13,
+            "James": 5, "1 Peter": 5, "2 Peter": 3, "1 John": 5, "2 John": 1, "3 John": 1,
+            "Jude": 1, "Revelation": 22
+        };
+
+        const sourcePlanMonthlySummary = [
+            { monthName: "May 2025", startDay: 24, daysInMonth: 31, part: "Old Testament", readings: [{ book: "Exodus", startChapter: 4, endChapter: 35, totalChapters: 32 }] },
+            { monthName: "June 2025", startDay: 1, daysInMonth: 30, part: "Old Testament", readings: [{ book: "Exodus", startChapter: 36, endBook: "Joshua", endChapter: 18, totalChapters: 120 }] },
+            { monthName: "July 2025", startDay: 1, daysInMonth: 31, part: "Old Testament", readings: [{ book: "Joshua", startChapter: 19, endBook: "2 Kings", endChapter: 16, totalChapters: 124 }] },
+            { monthName: "August 2025", startDay: 1, daysInMonth: 31, part: "Old Testament", readings: [{ book: "2 Kings", startChapter: 17, endBook: "Job", endChapter: 17, totalChapters: 124 }] },
+            { monthName: "September 2025", startDay: 1, daysInMonth: 30, part: "Old Testament", readings: [{ book: "Job", startChapter: 18, endBook: "Psalms", endChapter: 95, totalChapters: 120 }] },
+            { monthName: "October 2025", startDay: 1, daysInMonth: 31, part: "Old Testament", readings: [{ book: "Psalms", startChapter: 96, endBook: "Isaiah", endChapter: 18, totalChapters: 124 }] },
+            { monthName: "November 2025", startDay: 1, daysInMonth: 30, part: "Old Testament", readings: [{ book: "Isaiah", startChapter: 19, endBook: "Ezekiel", endChapter: 15, totalChapters: 120 }] },
+            { monthName: "December 2025", startDay: 1, daysInMonth: 31, part: "Old Testament & New Testament", readings: [
+                { book: "Ezekiel", startChapter: 16, endBook: "Malachi", endChapter: 4, totalChapters: 112 },
+                { book: "Matthew", startChapter: 1, endChapter: 12, totalChapters: 12 }
+            ]},
+            { monthName: "January 2026", startDay: 1, daysInMonth: 31, part: "New Testament", readings: [
+                { book: "Matthew", startChapter: 13, endBook: "John", endChapter: 21, totalChapters: 77 },
+                { book: "Acts", startChapter: 1, endChapter: 28, totalChapters: 28 },
+                { book: "Romans", startChapter: 1, endChapter: 16, totalChapters: 16 },
+                { book: "1 Corinthians", startChapter: 1, endChapter: 3, totalChapters: 3 }
+            ]},
+            { monthName: "February 2026", startDay: 1, daysInMonth: 28, part: "New Testament", readings: [
+                { book: "1 Corinthians", startChapter: 4, endBook: "2 Corinthians", endChapter: 13, totalChapters: 26 },
+                { book: "Galatians", startChapter: 1, endBook: "Philemon", endChapter: 1, totalChapters: 42 },
+                { book: "Hebrews", startChapter: 1, endBook: "Jude", endChapter: 1, totalChapters: 34 },
+                { book: "Revelation", startChapter: 1, endChapter: 10, totalChapters: 10 }
+            ]},
+            { monthName: "March 2026", startDay: 1, daysInMonth: 31, part: "New Testament", readings: [{ book: "Revelation", startChapter: 11, endChapter: 21, totalChapters: 11 }] }
+        ];
+
+        let fullPlanData = [];
+        let progressChartInstance = null;
+        const CHAPTERS_PER_DAY = 4;
+        const PLAN_DOC_ID = 'myReadingPlan';
+
+        function getBookOrder() {
+            return Object.keys(bibleBookChapters);
         }
-      });
+        
+        async function loadReadingPlan() {
+            if (!isAuthReady || !db || !userId) {
+                console.log("Authentication not ready or DB/userId not available yet.");
+                return;
+            }
+
+            const planDocRef = doc(db, `artifacts/${appId}/users/${userId}/readingPlans`, PLAN_DOC_ID);
+
+            onSnapshot(planDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    console.log("Loading plan from Firestore.");
+                    fullPlanData = JSON.parse(docSnap.data().planData);
+                } else {
+                    console.log("No plan found in Firestore, generating new plan.");
+                    generateFullPlanData();
+                    saveReadingPlan();
+                }
+                renderFullPlan();
+                updateProgress();
+                updateTodaysReadingDisplay();
+            }, (error) => {
+                console.error("Error fetching document:", error);
+                console.log("Error fetching plan, generating new plan locally.");
+                generateFullPlanData();
+                renderFullPlan();
+                updateProgress();
+                updateTodaysReadingDisplay();
+            });
+        }
+
+        function generateFullPlanData() {
+            const bookOrder = getBookOrder();
+            let overallReadingIdCounter = 0;
+            let currentBookName = "";
+            let currentChapterNum = 0;
+            fullPlanData = [];
+
+            sourcePlanMonthlySummary.forEach(monthData => {
+                const year = parseInt(monthData.monthName.split(" ")[1]);
+                const monthJs = new Date(Date.parse(monthData.monthName +" 1, 2000")).getMonth();
+                let daysInThisMonth = (monthData.monthName === "May 2025") ? (monthData.daysInMonth - monthData.startDay + 1) : 
+                                     (monthData.monthName === "March 2026") ? Math.ceil(monthData.readings.reduce((sum, r) => sum + r.totalChapters, 0) / CHAPTERS_PER_DAY) 
+                                     : new Date(year, monthJs + 1, 0).getDate();
+                
+                if (monthData.monthName === "February 2026") daysInThisMonth = 28;
+
+                const monthEntry = {
+                    month: monthData.monthName,
+                    part: monthData.part,
+                    dailyReadings: [],
+                    totalMonthChapters: monthData.readings.reduce((sum, r) => sum + r.totalChapters, 0)
+                };
+
+                monthData.readings.forEach(readingBlock => {
+                    if (!currentBookName || currentBookName !== readingBlock.book || currentChapterNum === 0) {
+                         currentBookName = readingBlock.book;
+                         currentChapterNum = readingBlock.startChapter;
+                    }
+
+                    let chaptersRemainingInBlock = readingBlock.totalChapters;
+                    
+                    while(chaptersRemainingInBlock > 0 && monthEntry.dailyReadings.length < daysInThisMonth) {
+                        let dayChapters = [];
+                        let dayReadingString = "";
+
+                        for (let i = 0; i < CHAPTERS_PER_DAY && chaptersRemainingInBlock > 0; i++) {
+                            if (currentChapterNum > bibleBookChapters[currentBookName]) {
+                                const currentBookIndex = bookOrder.indexOf(currentBookName);
+                                if (currentBookIndex + 1 < bookOrder.length) {
+                                    currentBookName = bookOrder[currentBookIndex + 1];
+                                    currentChapterNum = 1;
+                                } else {
+                                    break; 
+                                }
+                            }
+                            
+                            dayChapters.push({ book: currentBookName, chapter: currentChapterNum });
+                            currentChapterNum++;
+                            chaptersRemainingInBlock--;
+                        }
+
+                        if (dayChapters.length > 0) {
+                            let currentReadBook = dayChapters[0].book;
+                            let startReadChapter = dayChapters[0].chapter;
+                            let endReadChapter = dayChapters[0].chapter;
+                            dayReadingString = `${currentReadBook} ${startReadChapter}`;
+
+                            for (let k = 1; k < dayChapters.length; k++) {
+                                if (dayChapters[k].book === currentReadBook && dayChapters[k].chapter === endReadChapter + 1) {
+                                    endReadChapter = dayChapters[k].chapter;
+                                } else {
+                                    if (startReadChapter !== endReadChapter) {
+                                        dayReadingString += `-${endReadChapter}`;
+                                    }
+                                    currentReadBook = dayChapters[k].book;
+                                    startReadChapter = dayChapters[k].chapter;
+                                    endReadChapter = dayChapters[k].chapter;
+                                    dayReadingString += `, ${currentReadBook} ${startReadChapter}`;
+                                }
+                            }
+                            if (startReadChapter !== endReadChapter) {
+                                dayReadingString += `-${endReadChapter}`;
+                            }
+                        }
+                        
+                        const dayNumber = (monthData.monthName === "May 2025") ? monthData.startDay + monthEntry.dailyReadings.length : monthEntry.dailyReadings.length + 1;
+                        const date = new Date(year, monthJs, dayNumber);
+                        if (date.getMonth() !== monthJs && monthData.monthName !== "March 2026") continue;
+
+                        monthEntry.dailyReadings.push({
+                            id: `reading-${overallReadingIdCounter++}`,
+                            date: date.toISOString().split('T')[0],
+                            booksAndChapters: dayReadingString || "Rest Day (or catch up)",
+                            completed: false
+                        });
+                    }
+                });
+                fullPlanData.push(monthEntry);
+            });
+        }
+
+
+        function renderFullPlan() {
+            const accordionContainer = document.getElementById('plan-accordion');
+            accordionContainer.innerHTML = ''; 
+
+            fullPlanData.forEach((monthPlan, monthIndex) => {
+                const monthDiv = document.createElement('div');
+                monthDiv.className = 'bg-white rounded-lg shadow';
+
+                const button = document.createElement('button');
+                button.className = 'w-full flex justify-between items-center p-4 text-left text-lg font-semibold text-sky-700 hover:bg-sky-50 rounded-t-lg focus:outline-none';
+                button.innerHTML = `
+                    <span>${monthPlan.month} (${monthPlan.part}) - ${monthPlan.totalMonthChapters} Chapters</span>
+                    <svg class="w-5 h-5 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                `;
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'p-4 border-t border-slate-200 hidden space-y-3';
+                contentDiv.id = `month-content-${monthIndex}`;
+
+                monthPlan.dailyReadings.forEach(dayReading => {
+                    const dayDiv = document.createElement('div');
+                    dayDiv.className = 'flex items-center justify-between p-2 bg-slate-50 rounded hover:bg-slate-100';
+                    
+                    const label = document.createElement('label');
+                    label.htmlFor = dayReading.id;
+                    label.className = 'flex-grow cursor-pointer';
+                    
+                    const dateObj = new Date(dayReading.date + 'T00:00:00');
+                    const formattedDate = `${dateObj.toLocaleString('default', { month: 'short' })} ${dateObj.getDate()}`;
+
+                    label.innerHTML = `
+                        <span class="font-medium text-slate-600">${formattedDate}:</span>
+                        <span class="ml-2 text-sm text-slate-800">${dayReading.booksAndChapters}</span>
+                    `;
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = dayReading.id;
+                    checkbox.checked = dayReading.completed;
+                    checkbox.className = 'form-checkbox h-5 w-5 text-amber-500 rounded border-slate-300 focus:ring-amber-400 ml-3 shrink-0';
+                    checkbox.addEventListener('change', () => {
+                        dayReading.completed = checkbox.checked;
+                        saveReadingPlan();
+                    });
+
+                    dayDiv.appendChild(label);
+                    dayDiv.appendChild(checkbox);
+                    contentDiv.appendChild(dayDiv);
+                });
+
+                button.addEventListener('click', () => {
+                    contentDiv.classList.toggle('hidden');
+                    button.querySelector('svg').classList.toggle('rotate-180');
+                });
+                
+                monthDiv.appendChild(button);
+                monthDiv.appendChild(contentDiv);
+                accordionContainer.appendChild(monthDiv);
+            });
+        }
+
+        function updateProgress() {
+            let chaptersReadCount = 0;
+            let totalPlanChapters = 0;
+
+            totalPlanChapters = sourcePlanMonthlySummary.reduce((sum, month) => sum + month.readings.reduce((s, r) => s + r.totalChapters, 0), 0);
+            
+            chaptersReadCount = 0;
+            fullPlanData.forEach(monthPlan => {
+                monthPlan.dailyReadings.forEach(day => {
+                    if (day.completed) {
+                         let dailyChapters = CHAPTERS_PER_DAY;
+                         chaptersReadCount += dailyChapters;
+                    }
+                });
+            });
+            chaptersReadCount = Math.min(chaptersReadCount, totalPlanChapters);
+
+            document.getElementById('chaptersRead').textContent = chaptersReadCount;
+            document.getElementById('totalChapters').textContent = totalPlanChapters;
+            
+            const percentage = totalPlanChapters > 0 ? Math.round((chaptersReadCount / totalPlanChapters) * 100) : 0;
+            document.getElementById('percentageComplete').textContent = percentage;
+
+            if (progressChartInstance) {
+                progressChartInstance.data.datasets[0].data = [chaptersReadCount, totalPlanChapters - chaptersReadCount];
+                progressChartInstance.update();
+            }
+            updateTodaysReadingDisplay();
+        }
+
+        function renderDashboardChart() {
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            if (progressChartInstance) {
+                progressChartInstance.destroy();
+            }
+            progressChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Read', 'Remaining'],
+                    datasets: [{
+                        data: [0, 1],
+                        backgroundColor: ['#38BDF8', '#E2E8F0'],
+                        borderColor: ['#FFFFFF', '#FFFFFF'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            enabled: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateTodaysReadingDisplay() {
+            const today = new Date();
+            const todayString = today.toISOString().split('T')[0];
+            document.getElementById('currentDateDisplay').textContent = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+            let foundToday = false;
+            for (const monthPlan of fullPlanData) {
+                for (const dayReading of monthPlan.dailyReadings) {
+                    if (dayReading.date === todayString) {
+                        document.getElementById('todaysReading').textContent = dayReading.booksAndChapters;
+                        const statusEl = document.getElementById('todaysReadingStatus');
+                        if (dayReading.completed) {
+                            statusEl.textContent = "Completed! Great job!";
+                            statusEl.className = "text-xs text-green-600";
+                        } else {
+                            statusEl.textContent = "Pending - Let's get to it!";
+                            statusEl.className = "text-xs text-red-600";
+                        }
+                        foundToday = true;
+                        break;
+                    }
+                }
+                if (foundToday) break;
+            }
+            if (!foundToday) {
+                document.getElementById('todaysReading').textContent = "No reading scheduled for today or plan complete.";
+                 document.getElementById('todaysReadingStatus').textContent = "";
+            }
+        }
+
+        async function saveReadingPlan() {
+            if (!isAuthReady || !db || !userId) {
+                console.log("Cannot save: Authentication not ready or DB/userId not available.");
+                return;
+            }
+            try {
+                const planDocRef = doc(db, `artifacts/${appId}/users/${userId}/readingPlans`, PLAN_DOC_ID);
+                await setDoc(planDocRef, {
+                    planData: JSON.stringify(fullPlanData),
+                    userId: userId,
+                    lastUpdated: new Date().toISOString()
+                });
+                console.log("Reading plan saved to Firestore!");
+            } catch (error) {
+                console.error("Error saving reading plan to Firestore:", error);
+            }
+        }
+
+        function handleNavigation() {
+            const tabs = document.querySelectorAll('.tab-button');
+            const sections = {
+                dashboard: document.getElementById('dashboard-section'),
+                'full-plan': document.getElementById('full-plan-section'),
+                tips: document.getElementById('tips-section')
+            };
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const activeTab = tab.dataset.tab;
+                    
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    Object.values(sections).forEach(section => {
+                        section.classList.add('hidden');
+                        section.classList.remove('section-fade-enter-active');
+                    });
+                    
+                    sections[activeTab].classList.remove('hidden');
+                    void sections[activeTab].offsetWidth; 
+                    sections[activeTab].classList.add('section-fade-enter-active');
+                });
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('currentYear').textContent = new Date().getFullYear();
+            renderDashboardChart();
+            handleNavigation();
+        });
+
     </script>
-  </body>
+</head>
+<body class="bg-slate-50 text-slate-700 font-sans">
+    <div id="app" class="container mx-auto p-4 max-w-5xl">
+        <header class="bg-sky-600 text-white p-6 rounded-lg shadow-md mb-8">
+            <h1 class="text-3xl font-bold text-center">Bible Reading Plan Tracker</h1>
+            <p class="text-center text-sky-100 mt-1">Exodus 4 to Revelation 21 (by March 31, 2026)</p>
+            <div id="user-id-display" class="text-center text-sky-200 text-sm mt-2 break-all">Loading User ID...</div>
+        </header>
+
+        <nav class="mb-8 flex justify-center space-x-2 sm:space-x-4 border-b border-slate-300 pb-2">
+            <button data-tab="dashboard" class="tab-button px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base text-slate-600 hover:text-sky-600 transition-colors duration-200 active">Dashboard</button>
+            <button data-tab="full-plan" class="tab-button px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base text-slate-600 hover:text-sky-600 transition-colors duration-200">Full Plan</button>
+            <button data-tab="tips" class="tab-button px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base text-slate-600 hover:text-sky-600 transition-colors duration-200">Tips</button>
+        </nav>
+
+        <main id="main-content">
+            <section id="dashboard-section" class="p-2 sm:p-4 section-fade-enter-active">
+                <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                    <h2 class="text-2xl font-semibold text-sky-700 mb-1">Welcome to Your Reading Journey!</h2>
+                    <p class="text-slate-600 mb-4">This dashboard provides an overview of your progress through the Bible reading plan. Track your completed chapters, see what's next, and stay motivated!</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-semibold text-sky-700 mb-3">Overall Progress</h3>
+                        <div class="chart-container mb-4">
+                            <canvas id="progressChart"></canvas>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-lg"><span id="chaptersRead" class="font-bold text-sky-600">0</span> / <span id="totalChapters" class="font-bold">0</span> Chapters Read</p>
+                            <p class="text-2xl font-bold text-amber-500"><span id="percentageComplete">0</span>% Complete</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-xl font-semibold text-sky-700 mb-3">Plan Details</h3>
+                            <ul class="space-y-2 text-slate-600">
+                                <li><strong>Goal:</strong> Complete by March 31, 2026</li>
+                                <li><strong>Start Date:</strong> May 24, 2025</li>
+                                <li><strong>Daily Target:</strong> Approx. 4 Chapters</li>
+                                <li class="mt-3 pt-3 border-t border-slate-200">
+                                    <h4 class="text-lg font-semibold text-sky-700 mb-1">Today's Reading (<span id="currentDateDisplay"></span>):</h4>
+                                    <p id="todaysReading" class="text-amber-600 font-medium">Loading...</p>
+                                    <p id="todaysReadingStatus" class="text-xs"></p>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="mt-4">
+                             <p class="text-sm text-slate-500">Keep up the great work! Every chapter read brings you closer to your goal.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="full-plan-section" class="p-2 sm:p-4 hidden">
+                 <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                    <h2 class="text-2xl font-semibold text-sky-700 mb-1">Detailed Reading Plan</h2>
+                    <p class="text-slate-600 mb-4">Here is the full breakdown of your reading plan, month by month. Check off each day's reading as you complete it. Your progress will be updated on the Dashboard.</p>
+                </div>
+                <div id="plan-accordion" class="space-y-4">
+                    </div>
+            </section>
+
+            <section id="tips-section" class="p-2 sm:p-4 hidden">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-2xl font-semibold text-sky-700 mb-1">Tips for Success</h2>
+                    <p class="text-slate-600 mb-4">Follow these tips to help you stay consistent and get the most out of your Bible reading journey.</p>
+                    <ul class="list-disc list-inside space-y-3 text-slate-600 pl-2">
+                        <li><strong>Consistency is Key:</strong> Aim to read at the same time each day to build a strong habit.</li>
+                        <li><strong>Flexibility:</strong> If you miss a day, don't get discouraged! Simply pick up where you left off or add a few extra chapters on subsequent days to catch up.</li>
+                        <li><strong>Understand, Don't Just Read:</strong> Take time to reflect on what you're reading. Consider using a study Bible or commentary if you want to delve deeper into the text.</li>
+                        <li><strong>Pray:</strong> Before you start reading, ask for understanding and wisdom.</li>
+                        <li><strong>Listen:</strong> If reading is difficult or you're on the go, consider listening to an audio Bible.</li>
+                        <li><strong>Adjust as Needed:</strong> This is a guideline. Feel free to adjust the daily chapter count slightly to fit your personal schedule and reading speed. Some days you might feel like reading more, and that's perfectly fine!</li>
+                    </ul>
+                </div>
+            </section>
+        </main>
+
+        <footer class="text-center mt-12 mb-6 text-sm text-slate-500">
+            <p>&copy; <span id="currentYear"></span> Bible Reading Plan Tracker. Happy Reading!</p>
+        </footer>
+    </div>
+
+</body>
 </html>
